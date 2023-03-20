@@ -1,7 +1,6 @@
 #include "CYdLidar.h"
 #include <string>
-using namespace std;
-using namespace ydlidar;
+#include <iostream>
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
@@ -83,13 +82,14 @@ void InitializeLidar(CYdLidar &PtrLaser)
 
 int main(int argc, char *argv[])
 {
-  printf("__   ______  _     ___ ____    _    ____  \n");
-  printf("\\ \\ / /  _ \\| |   |_ _|  _ \\  / \\  |  _ \\ \n");
-  printf(" \\ V /| | | | |    | || | | |/ _ \\ | |_) | \n");
-  printf("  | | | |_| | |___ | || |_| / ___ \\|  _ <  \n");
-  printf("  |_| |____/|_____|___|____/_/   \\_\\_| \\_\\ \n");
-  printf("\n");
-  fflush(stdout);
+  std::cout <<  "\033[1;35m"
+                " _____   _____       _____           \n"
+                "|  __ \\ / ____|     / ____|          \n"
+                "| |__) | |   ______| |     __ _ _ __ \n"
+                "|  _  /| |  |______| |    / _` | '__|\n"
+                "| | \\ \\| |____     | |___| (_| | |   \n"
+                "|_|  \\_\\______|    \\______\\__,_|_|   \n"
+                "\033[0m" << std::endl;
 
   // init system signal
   ydlidar::os_init();
@@ -117,10 +117,13 @@ int main(int argc, char *argv[])
     LaserScan scan;
     if (laser.doProcessSimple(scan))
     {
-      fprintf(stdout, "Scan received[%llu]: %u ranges is [%f]Hz\n",
-              scan.stamp,
-              (unsigned int)scan.points.size(), 1.0 / scan.config.scan_time);
-      fflush(stdout);
+      //fprintf(stdout, "Scan received[%llu]: %u ranges is [%f]Hz\n", scan.stamp, (unsigned int)scan.points.size(), 1.0 / scan.config.scan_time);
+      //fflush(stdout);
+      for(int i = 0; i < scan.points.size(); i++) {
+        std::cout << "Angle: " << scan.points[i].angle << " Range: " << scan.points[i].range << "\n";
+      }
+
+      break;
     }
     else
     {
