@@ -8,6 +8,7 @@
 #include <vector>
 #include <iostream>
 #include <sstream>
+#include <atomic>
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
@@ -92,14 +93,14 @@ void InitializeLidar(CYdLidar &PtrLaser)
 }
 
 // Function to display LaserPoints in an OpenCV window
-void displayLaserPoints(const std::string& window_name) {
+void displayLaserPoints(const std::string& window_name, std::atomic<bool>& running) {
     int window_width = 800;
     int window_height = 800;
 
     // Create an OpenCV window
     cv::namedWindow(window_name, cv::WINDOW_AUTOSIZE);
 
-    while (!stop_window_thread) {
+    while (!stop_window_thread && running) {
         // Create a black image with specified dimensions and 3 color channels
         cv::Mat img(window_height, window_width, CV_8UC3, cv::Scalar(0, 0, 0));
 
@@ -122,6 +123,10 @@ void displayLaserPoints(const std::string& window_name) {
 
         // Wait for a key press or 30 ms, whichever comes first
         int key = cv::waitKey(30);
+
+        if (key == 27 || cv::getWindowProperty(window_name, cv::WND_PROP_AUTOSIZE) == -1) {
+          running = false; // Set the running flag to false to stop the loop in the main thread
+        }
     }
 
     // Close the window
@@ -146,8 +151,11 @@ int main(int argc, char *argv[])
 
   InitializeLidar(laser);
 
+  // This flag will be used to control the loop
+  std::atomic<bool> running(true);
+
   // Start the displayLaserPoints thread
-  std::thread window_thread(displayLaserPoints, "Laser Points");
+  std::thread window_thread(displayLaserPoints, "Laser Points", std::ref(running));
 
   // initialize SDK and LiDAR
   bool ret = laser.initialize();
@@ -162,8 +170,7 @@ int main(int argc, char *argv[])
     fflush(stderr);
   }
 
-  // Turn On success and loop
-  while (ret && ydlidar::os_isOk())
+  while (ret && ydlidar::os_isOk() && running)
   {
     LaserScan scan;
     if (laser.doProcessSimple(scan))
@@ -181,6 +188,8 @@ int main(int argc, char *argv[])
     }
   }
 
+  // Wait for the input_thread to finish before exiting the program
+  //input_thread.join();
   // Stop the window_thread
   stop_window_thread = true;
   // Wait for the window_thread to finish
