@@ -137,7 +137,9 @@ void displayLaserPoints(const std::string& window_name, std::atomic<bool>& runni
     }
 
     // Close the window
-    cv::destroyWindow(window_name);
+    if(cv::getWindowProperty(window_name, cv::WND_PROP_AUTOSIZE) != -1) {
+      cv::destroyWindow(window_name);
+    }
 }
 
 int main(int argc, char *argv[])
