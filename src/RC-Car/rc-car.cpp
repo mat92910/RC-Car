@@ -117,13 +117,7 @@ int main(int argc, char *argv[])
     LaserScan scan;
     if (laser.doProcessSimple(scan))
     {
-      //fprintf(stdout, "Scan received[%llu]: %u ranges is [%f]Hz\n", scan.stamp, (unsigned int)scan.points.size(), 1.0 / scan.config.scan_time);
-      //fflush(stdout);
-      for(int i = 0; i < scan.points.size(); i++) {
-        std::cout << "Angle: " << scan.points[i].angle << " Range: " << scan.points[i].range << "\n";
-      }
-
-      break;
+      // Where logic goes
     }
     else
     {

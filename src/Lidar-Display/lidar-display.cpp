@@ -1,10 +1,21 @@
 #include "CYdLidar.h"
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+#include <thread>
+#include <mutex>
 #include <string>
+#include <vector>
 #include <iostream>
+#include <sstream>
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
 #endif
+
+std::vector<LaserPoint> points;
+std::mutex points_mutex;
+bool stop_window_thread = false;
 
 void InitializeLidar(CYdLidar &PtrLaser)
 {
@@ -80,6 +91,43 @@ void InitializeLidar(CYdLidar &PtrLaser)
   PtrLaser.setlidaropt(LidarPropScanFrequency, &f_optvalue, sizeof(float));
 }
 
+// Function to display LaserPoints in an OpenCV window
+void displayLaserPoints(const std::string& window_name) {
+    int window_width = 800;
+    int window_height = 800;
+
+    // Create an OpenCV window
+    cv::namedWindow(window_name, cv::WINDOW_AUTOSIZE);
+
+    while (!stop_window_thread) {
+        // Create a black image with specified dimensions and 3 color channels
+        cv::Mat img(window_height, window_width, CV_8UC3, cv::Scalar(0, 0, 0));
+
+        // Access the LaserPoints safely using a lock_guard
+        std::lock_guard<std::mutex> lock(points_mutex);
+
+        // Draw the LaserPoints on the image
+        for (const auto& point : points) {
+            int x = static_cast<int>(point.range * std::cos(point.angle) * 100) + window_width / 2;
+            int y = static_cast<int>(point.range * std::sin(point.angle) * 100) + window_height / 2;
+
+            cv::circle(img, cv::Point(x, y), 3, cv::Scalar(0, 255, 0), -1);
+        }
+
+        // Draw a red point at the center (0, 0)
+        cv::circle(img, cv::Point(window_width / 2, window_height / 2), 5, cv::Scalar(0, 0, 255), -1);
+
+        // Display the image in the window
+        cv::imshow(window_name, img);
+
+        // Wait for a key press or 30 ms, whichever comes first
+        int key = cv::waitKey(30);
+    }
+
+    // Close the window
+    cv::destroyWindow(window_name);
+}
+
 int main(int argc, char *argv[])
 {
   std::cout <<  "\033[1;35m"
@@ -97,6 +145,9 @@ int main(int argc, char *argv[])
   CYdLidar laser;
 
   InitializeLidar(laser);
+
+  // Start the displayLaserPoints thread
+  std::thread window_thread(displayLaserPoints, "Laser Points");
 
   // initialize SDK and LiDAR
   bool ret = laser.initialize();
@@ -117,13 +168,11 @@ int main(int argc, char *argv[])
     LaserScan scan;
     if (laser.doProcessSimple(scan))
     {
-      //fprintf(stdout, "Scan received[%llu]: %u ranges is [%f]Hz\n", scan.stamp, (unsigned int)scan.points.size(), 1.0 / scan.config.scan_time);
-      //fflush(stdout);
-      for(int i = 0; i < scan.points.size(); i++) {
-        std::cout << "Angle: " << scan.points[i].angle << " Range: " << scan.points[i].range << "\n";
+      // Update the LaserPoints
+      {
+          std::lock_guard<std::mutex> lock(points_mutex);
+          points = scan.points;
       }
-
-      break;
     }
     else
     {
@@ -131,6 +180,11 @@ int main(int argc, char *argv[])
       fflush(stderr);
     }
   }
+
+  // Stop the window_thread
+  stop_window_thread = true;
+  // Wait for the window_thread to finish
+  window_thread.join();
   // Stop the device scanning thread and disable motor.
   laser.turnOff();
   // Uninitialize the SDK and Disconnect the LiDAR.
