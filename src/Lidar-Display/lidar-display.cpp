@@ -112,11 +112,18 @@ void displayLaserPoints(const std::string& window_name, std::atomic<bool>& runni
             int x = static_cast<int>(point.range * std::cos(point.angle) * 100) + window_width / 2;
             int y = static_cast<int>(point.range * std::sin(point.angle) * 100) + window_height / 2;
 
-            cv::circle(img, cv::Point(x, y), 3, cv::Scalar(0, 255, 0), -1);
+            cv::circle(img, cv::Point(x, y), 1, cv::Scalar(0, 255, 0), -1);
         }
 
-        // Draw a red point at the center (0, 0)
-        cv::circle(img, cv::Point(window_width / 2, window_height / 2), 5, cv::Scalar(0, 0, 255), -1);
+        // Calculate the center of the image
+        cv::Point center(window_width / 2, window_height / 2);
+
+        // Calculate the top-left and bottom-right points of the square
+        cv::Point top_left(center.x - 10 / 2, center.y - 20 / 2);
+        cv::Point bottom_right(center.x + 10 / 2, center.y + 20 / 2);
+
+        // Draw the square on the image
+        cv::rectangle(img, top_left, bottom_right, cv::Scalar(0, 0, 255), -1);
 
         // Display the image in the window
         cv::imshow(window_name, img);
