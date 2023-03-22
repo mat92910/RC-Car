@@ -6,6 +6,7 @@
 #pragma comment(lib, "ydlidar_sdk.lib")
 #endif
 
+// Function to initialize the lidar with the setting for the x4
 void InitializeLidar(CYdLidar &PtrLaser)
 {
   //////////////////////string property/////////////////

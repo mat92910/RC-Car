@@ -18,6 +18,7 @@ std::vector<LaserPoint> points;
 std::mutex points_mutex;
 bool stop_window_thread = false;
 
+// Function to initialize the lidar with the setting for the x4
 void InitializeLidar(CYdLidar &PtrLaser)
 {
   //////////////////////string property/////////////////
