@@ -9,17 +9,14 @@ set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
 include(CPack)
 
 
-############## YDLIDAR SDK START#####################################
 #find ydlidar_sdk package
 find_package(ydlidar_sdk REQUIRED)
+#find OpenCV Package
+find_package(OpenCV REQUIRED)
+
 #Include directories
-include_directories(
-  ${YDLIDAR_SDK_INCLUDE_DIRS}
-  )
-  
+include_directories(${YDLIDAR_SDK_INCLUDE_DIRS}) 
 add_subdirectory(src)
 
 #link library directories
 link_directories(${YDLIDAR_SDK_LIBRARY_DIRS})
-
-############## YDLIDAR SDK END#####################################
