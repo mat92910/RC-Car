@@ -146,12 +146,12 @@ void displayLaserPoints(const std::string& window_name, std::atomic<bool>& runni
 int main(int argc, char *argv[])
 {
   std::cout <<  "\033[1;35m"
-                " _____   _____             _____           \n"
-                "|  __ \\ / ____|           / ____|          \n"
-                "| |__) | |       ______  | |     __ _ _ __ \n"
-                "|  _  /| |      |______| | |    / _` | '__|\n"
-                "| | \\ \\| |____           | |___| (_| | |   \n"
-                "|_|  \\_\\______|           \\_____\\__,_|_|   \n"
+                "  _____           \n"
+                "  / ____|          \n"
+                "| |     __ _ _ __ \n"
+                "| |    / _` | '__|\n"
+                "  | |___| (_| | |   \n"
+                "   \\_____\\__,_|_|   \n"
                 "\033[0m" << std::endl;
 
   // init system signal
