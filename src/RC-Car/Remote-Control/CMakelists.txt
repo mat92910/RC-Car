@@ -1,5 +1,0 @@
-add_executable(Remote-Control remote-control.cpp)
-
-#Link your project to the libraries.
-target_link_libraries(Remote-Control ${YDLIDAR_SDK_LIBRARIES})
-target_link_libraries(Remote-Control ${OpenCV_LIBS})
