@@ -1,7 +1,4 @@
 #include "CYdLidar.h"
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
 #include <thread>
 #include <mutex>
 #include <string>
@@ -9,10 +6,79 @@
 #include <iostream>
 #include <sstream>
 #include <atomic>
+#include <asio.hpp>
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
 #endif
+
+using asio::ip::tcp;
+
+class Session {
+public:
+    Session(tcp::socket socket)
+        : socket_(std::move(socket)) {
+    }
+
+    void start() {
+        std::thread receive_thread(&Session::receiveData, this);
+        std::thread send_thread(&Session::sendData, this);
+
+        receive_thread.join();
+        send_thread.join();
+    }
+
+private:
+    void receiveData() {
+        while (true) {
+            std::array<char, 128> buf;
+            std::error_code error;
+            size_t len = socket_.read_some(asio::buffer(buf), error);
+
+            if (error == asio::error::eof) {
+                break; // Connection closed cleanly by peer.
+            } else if (error) {
+                throw std::system_error(error); // Some other error.
+            }
+
+            std::string data(buf.data(), len);
+            std::cout << "Received data: " << data << std::endl;
+        }
+    }
+
+    void sendData() {
+        while (true) {
+            std::string message;
+            std::cout << "Enter message to send: ";
+            std::getline(std::cin, message);
+
+            asio::write(socket_, asio::buffer(message));
+        }
+    }
+
+    tcp::socket socket_;
+};
+
+class Server {
+public:
+    Server(asio::io_service& io_service, uint16_t port)
+        : acceptor_(io_service, tcp::endpoint(tcp::v4(), port)) {
+        accept();
+    }
+
+private:
+    void accept() {
+        acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
+            if (!ec) {
+                std::make_shared<Session>(std::move(socket))->start();
+            }
+
+            accept();
+        });
+    }
+
+    tcp::acceptor acceptor_;
+};
 
 // Function to initialize the lidar with the setting for the x4
 void InitializeLidar(CYdLidar &PtrLaser)
@@ -89,6 +155,8 @@ void InitializeLidar(CYdLidar &PtrLaser)
   PtrLaser.setlidaropt(LidarPropScanFrequency, &f_optvalue, sizeof(float));
 }
 
+
+
 int main(int argc, char *argv[])
 {
   std::cout <<  "\033[1;35m"
@@ -100,47 +168,15 @@ int main(int argc, char *argv[])
                 " \\_____\\__,_|_|   \n"
                 "\033[0m" << std::endl;
 
-  // init system signal
-  ydlidar::os_init();
+  try {
+      uint16_t port = 12345;
+      asio::io_service io_service;
+      Server server(io_service, port);
 
-  CYdLidar laser;
-
-  InitializeLidar(laser);
-
-  // This flag will be used to control the loop
-  std::atomic<bool> running(true);
-
-  // initialize SDK and LiDAR
-  bool ret = laser.initialize();
-  if (ret)
-  { // success
-    // Start the device scanning routine which runs on a separate thread and enable motor.
-    ret = laser.turnOn();
-  }
-  else
-  {
-    fprintf(stderr, "%s\n", laser.DescribeError());
-    fflush(stderr);
+      io_service.run();
+  } catch (std::exception& e) {
+      std::cerr << "Exception: " << e.what() << std::endl;
   }
 
-  while (ret && ydlidar::os_isOk() && running)
-  {
-    LaserScan scan;
-    if (laser.doProcessSimple(scan))
-    {
-      // Update the LaserPoints
-      
-    }
-    else
-    {
-      fprintf(stderr, "Failed to get Lidar Data\n");
-      fflush(stderr);
-    }
-  }
-
-  // Stop the device scanning thread and disable motor.
-  laser.turnOff();
-  // Uninitialize the SDK and Disconnect the LiDAR.
-  laser.disconnecting();
   return 0;
 }

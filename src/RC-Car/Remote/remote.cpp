@@ -1,7 +1,4 @@
 #include "CYdLidar.h"
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
 #include <thread>
 #include <mutex>
 #include <string>
@@ -9,62 +6,93 @@
 #include <iostream>
 #include <sstream>
 #include <atomic>
+#include <asio.hpp>
+#include <cmath>
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
 #endif
 
+using asio::ip::tcp;
+
 std::vector<LaserPoint> points;
 std::mutex points_mutex;
 bool stop_window_thread = false;
 
+class ConnectionHandler {
+public:
+    ConnectionHandler(asio::io_service& io_service, const std::string& host, uint16_t port)
+        : socket_(io_service), resolver_(io_service) {
+        tcp::resolver::query query(host, std::to_string(port));
+        tcp::resolver::iterator endpoint_iterator = resolver_.resolve(query);
+        asio::connect(socket_, endpoint_iterator);
+    }
+
+    void sendData(const std::string& message) {
+        asio::write(socket_, asio::buffer(message));
+    }
+
+    std::string receiveData() {
+        std::array<char, 128> buf;
+        std::error_code error;
+        size_t len = socket_.read_some(asio::buffer(buf), error);
+        if (error == asio::error::eof) {
+            return ""; // Connection closed cleanly by peer.
+        } else if (error) {
+            throw std::system_error(error); // Some other error.
+        }
+        return std::string(buf.data(), len);
+    }
+
+    void disconnect() {
+        // Perform a proper shutdown of the socket.
+        std::error_code ec;
+        socket_.shutdown(tcp::socket::shutdown_both, ec);
+        if (ec) {
+            throw std::system_error(ec); // Some error occurred.
+        }
+
+        // Close the socket.
+        socket_.close(ec);
+        if (ec) {
+            throw std::system_error(ec); // Some error occurred.
+        }
+    }
+
+private:
+    tcp::socket socket_;
+    tcp::resolver resolver_;
+};
+
 // Function to display LaserPoints in an OpenCV window
 void displayLaserPoints(const std::string& window_name, std::atomic<bool>& running) {
-    int window_width = 800;
-    int window_height = 800;
-
-    // Create an OpenCV window
-    cv::namedWindow(window_name, cv::WINDOW_AUTOSIZE);
 
     while (!stop_window_thread && running) {
-        // Create a black image with specified dimensions and 3 color channels
-        cv::Mat img(window_height, window_width, CV_8UC3, cv::Scalar(0, 0, 0));
-
         // Access the LaserPoints safely using a lock_guard
         std::lock_guard<std::mutex> lock(points_mutex);
 
         // Draw the LaserPoints on the image
         for (const auto& point : points) {
-            int x = static_cast<int>(point.range * std::cos(point.angle) * 100) + window_width / 2;
-            int y = static_cast<int>(point.range * std::sin(point.angle) * 100) + window_height / 2;
-
-            cv::circle(img, cv::Point(x, y), 1, cv::Scalar(0, 255, 0), -1);
-        }
-
-        // Calculate the center of the image
-        cv::Point center(window_width / 2, window_height / 2);
-
-        // Calculate the top-left and bottom-right points of the square
-        cv::Point top_left(center.x - 10 / 2, center.y - 20 / 2);
-        cv::Point bottom_right(center.x + 10 / 2, center.y + 20 / 2);
-
-        // Draw the square on the image
-        cv::rectangle(img, top_left, bottom_right, cv::Scalar(0, 0, 255), -1);
-
-        // Display the image in the window
-        cv::imshow(window_name, img);
-
-        // Wait for a key press or 30 ms, whichever comes first
-        int key = cv::waitKey(30);
-
-        if (key == 27 || cv::getWindowProperty(window_name, cv::WND_PROP_AUTOSIZE) == -1) {
-          running = false; // Set the running flag to false to stop the loop in the main thread
+            int x = static_cast<int>(point.range * cos(point.angle) * 100);
+            int y = static_cast<int>(point.range * sin(point.angle) * 100);
         }
     }
+}
 
-    // Close the window
-    if(cv::getWindowProperty(window_name, cv::WND_PROP_AUTOSIZE) != -1) {
-      cv::destroyWindow(window_name);
+void sendThread(ConnectionHandler& connection_handler) {
+    while (true) {
+        std::string message;
+        std::cout << "Enter message to send: ";
+        std::getline(std::cin, message);
+
+        connection_handler.sendData(message);
+    }
+}
+
+void receiveThread(ConnectionHandler& connection_handler) {
+    while (true) {
+        std::string data = connection_handler.receiveData();
+        std::cout << "Received data: " << data << std::endl;
     }
 }
 
@@ -79,21 +107,31 @@ int main(int argc, char *argv[])
                 "|_|  \\_\\___|_| |_| |_|\\___/ \\__\\___|\n"
                 "\033[0m" << std::endl;
 
-  // This flag will be used to control the loop
-  std::atomic<bool> running(true);
+  try {
+        const std::string host = "127.0.0.1";
+        const uint16_t port = 12345;
+        asio::io_service io_service;
+        ConnectionHandler connection_handler(io_service, host, port);
 
-  // Start the displayLaserPoints thread
-  std::thread window_thread(displayLaserPoints, "Laser Points", std::ref(running));
+        std::thread send_thread(sendThread, std::ref(connection_handler));
+        std::thread receive_thread(receiveThread, std::ref(connection_handler));
 
-  while (running)
-  {
-    // Update the LaserPoints
-    
-  }
+        // Wait for user input to disconnect.
+        std::string input;
+        while (std::getline(std::cin, input)) {
+            if (input == "disconnect") {
+                break;
+            }
+        }
 
-  // Stop the window_thread
-  stop_window_thread = true;
-  // Wait for the window_thread to finish
-  window_thread.join();
+        // Safely disconnect the client.
+        connection_handler.disconnect();
+
+        send_thread.join();
+        receive_thread.join();
+    } catch (std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+    }
+
   return 0;
 }
