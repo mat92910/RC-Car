@@ -1,4 +1,7 @@
-if(NOT ${ARCHITECTURE} STREQUAL "64Bit" )
+EXECUTE_PROCESS( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE )
+message( STATUS "Architecture: ${ARCHITECTURE}" )
+
+if(NOT ${ARCHITECTURE} STREQUAL "x86_64" )
     add_executable(Car car.cpp)
 
     #Link your project to the libraries.
