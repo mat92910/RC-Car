@@ -1,12 +1,13 @@
 #include "CYdLidar.h"
-#include <bits/stdc++.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
+#include <thread>
+#include <mutex>
+#include <string>
+#include <iostream>
+#include <sys/socket.h> // Required for socket programming
+#include <netinet/in.h> // Required for internet domain addresses
+#include <arpa/inet.h> // Required for inet_addr function
+#include <unistd.h> // Required for close function
+#include <chrono> // Required for timestamps
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
@@ -103,48 +104,79 @@ int main() {
                 " \\_____\\__,_|_|   \n"
                 "\033[0m" << std::endl;
 
-    int sockfd;
-    char buffer[MAXLINE];
-    const char *hello = "Hello from server";
-    struct sockaddr_in servaddr, cliaddr;
-       
-    // Creating socket file descriptor
-    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
-        perror("socket creation failed");
-        exit(EXIT_FAILURE);
+    // init system signal
+    ydlidar::os_init();
+
+    CYdLidar laser;
+
+    InitializeLidar(laser);
+
+    // initialize SDK and LiDAR
+    bool ret = laser.initialize();
+    if (ret)
+    { // success
+        // Start the device scanning routine which runs on a separate thread and enable motor.
+        ret = laser.turnOn();
     }
-       
-    memset(&servaddr, 0, sizeof(servaddr));
-    memset(&cliaddr, 0, sizeof(cliaddr));
-       
-    // Filling server information
-    servaddr.sin_family    = AF_INET; // IPv4
-    servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(PORT);
-       
-    // Bind the socket with the server address
-    if ( bind(sockfd, (const struct sockaddr *)&servaddr, 
-            sizeof(servaddr)) < 0 )
+    else
     {
-        perror("bind failed");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "%s\n", laser.DescribeError());
+        fflush(stderr);
     }
-       
-    socklen_t len;
-    int n;
-   
-    len = sizeof(cliaddr);  //len is value/result
-   
-    while(true) {
-        n = recvfrom(sockfd, (char *)buffer, MAXLINE, 
-                    MSG_WAITALL, ( struct sockaddr *) &cliaddr,
-                    &len);
-        buffer[n] = '\0';
-        printf("Client : %s\n", buffer);
-        sendto(sockfd, (const char *)hello, strlen(hello), 
-            MSG_CONFIRM, (const struct sockaddr *) &cliaddr,
-                len);
-        std::cout<<"Hello message sent."<<std::endl; 
+
+    // Create a socket
+    // AF_INET is the address family for IPv4
+    // SOCK_DGRAM is the socket type for UDP
+    // 0 is the protocol value for IP
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("Failed to create socket");
+        return 1;
     }
+
+    // Specify the address and port of the remote client
+    struct sockaddr_in servaddr;
+    servaddr.sin_family = AF_INET; // Address family for IPv4
+    servaddr.sin_port = htons(PORT); // Port number, converted to network byte order
+    servaddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // IP address, converted to network byte order
+
+        
+    while (ret && ydlidar::os_isOk())
+    {
+        LaserScan scan;
+        if (laser.doProcessSimple(scan))
+        {
+            for(int i = 0; i < scan.points.size(); i++) {
+                // Get the current time
+                auto now = std::chrono::system_clock::now();
+                std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+
+                // Prepare the data to be sent
+                std::string data = "Angle: " + std::to_string(scan.points[i].angle) + " Range: " + std::to_string(scan.points[i].range) + " Timestamp: " + std::to_string(now_time) + "\n";
+                // Send the data over the socket to the specified address and port
+                sendto(sockfd, data.c_str(), data.size(), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
+            }
+
+            // Get the current time
+            auto now = std::chrono::system_clock::now();
+            std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+
+            std::cout << "Points Sent: " + std::to_string(scan.points.size()) + " Timestamp: " + std::to_string(now_time) + "\n";
+        }
+        else
+        {
+            fprintf(stderr, "Failed to get Lidar Data\n");
+            fflush(stderr);
+        }
+    }
+
+    // Close the socket
+    close(sockfd);
+
+    // Stop the device scanning thread and disable motor.
+    laser.turnOff();
+    // Uninitialize the SDK and Disconnect the LiDAR.
+    laser.disconnecting();
+
     return 0;
 }
