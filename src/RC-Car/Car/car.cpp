@@ -149,19 +149,21 @@ int main() {
             for(int i = 0; i < scan.points.size(); i++) {
                 // Get the current time
                 auto now = std::chrono::system_clock::now();
-                std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+                auto duration = now.time_since_epoch();
+                auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
                 // Prepare the data to be sent
-                std::string data = "Angle: " + std::to_string(scan.points[i].angle) + " Range: " + std::to_string(scan.points[i].range) + " Timestamp: " + std::to_string(now_time) + "\n";
+                std::string data = "Angle: " + std::to_string(scan.points[i].angle) + " Range: " + std::to_string(scan.points[i].range) + " Timestamp: " + std::to_string(milliseconds) + "\n";
                 // Send the data over the socket to the specified address and port
                 sendto(sockfd, data.c_str(), data.size(), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
             }
 
             // Get the current time
             auto now = std::chrono::system_clock::now();
-            std::time_t now_time = std::chrono::system_clock::to_time_t(now);
+            auto duration = now.time_since_epoch();
+            auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
-            std::cout << "Points Sent: " + std::to_string(scan.points.size()) + " Timestamp: " + std::to_string(now_time) + "\n";
+            std::cout << "Points Sent: " + std::to_string(scan.points.size()) + " Timestamp: " + std::to_string(milliseconds) + "\n";
         }
         else
         {
