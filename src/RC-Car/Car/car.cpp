@@ -1,84 +1,21 @@
 #include "CYdLidar.h"
-#include <thread>
-#include <mutex>
-#include <string>
-#include <vector>
-#include <iostream>
-#include <sstream>
-#include <atomic>
-#include <asio.hpp>
+#include <bits/stdc++.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
 #endif
 
-using asio::ip::tcp;
-
-class Session {
-public:
-    Session(tcp::socket socket)
-        : socket_(std::move(socket)) {
-    }
-
-    void start() {
-        std::thread receive_thread(&Session::receiveData, this);
-        std::thread send_thread(&Session::sendData, this);
-
-        receive_thread.join();
-        send_thread.join();
-    }
-
-private:
-    void receiveData() {
-        while (true) {
-            std::array<char, 128> buf;
-            std::error_code error;
-            size_t len = socket_.read_some(asio::buffer(buf), error);
-
-            if (error == asio::error::eof) {
-                break; // Connection closed cleanly by peer.
-            } else if (error) {
-                throw std::system_error(error); // Some other error.
-            }
-
-            std::string data(buf.data(), len);
-            std::cout << "Received data: " << data << std::endl;
-        }
-    }
-
-    void sendData() {
-        while (true) {
-            std::string message;
-            std::cout << "Enter message to send: ";
-            std::getline(std::cin, message);
-
-            asio::write(socket_, asio::buffer(message));
-        }
-    }
-
-    tcp::socket socket_;
-};
-
-class Server {
-public:
-    Server(asio::io_service& io_service, uint16_t port)
-        : acceptor_(io_service, tcp::endpoint(tcp::v4(), port)) {
-        accept();
-    }
-
-private:
-    void accept() {
-        acceptor_.async_accept([this](std::error_code ec, tcp::socket socket) {
-            if (!ec) {
-                std::make_shared<Session>(std::move(socket))->start();
-            }
-
-            accept();
-        });
-    }
-
-    tcp::acceptor acceptor_;
-};
+// Server side implementation of UDP client-server model
+   
+#define PORT     8080
+#define MAXLINE 1024
 
 // Function to initialize the lidar with the setting for the x4
 void InitializeLidar(CYdLidar &PtrLaser)
@@ -155,11 +92,9 @@ void InitializeLidar(CYdLidar &PtrLaser)
   PtrLaser.setlidaropt(LidarPropScanFrequency, &f_optvalue, sizeof(float));
 }
 
-
-
-int main(int argc, char *argv[])
-{
-  std::cout <<  "\033[1;35m"
+// Driver code
+int main() {
+    std::cout <<  "\033[1;35m"
                 "  _____           \n"
                 " / ____|          \n"
                 "| |     __ _ _ __ \n"
@@ -168,15 +103,48 @@ int main(int argc, char *argv[])
                 " \\_____\\__,_|_|   \n"
                 "\033[0m" << std::endl;
 
-  try {
-      uint16_t port = 12345;
-      asio::io_service io_service;
-      Server server(io_service, port);
-
-      io_service.run();
-  } catch (std::exception& e) {
-      std::cerr << "Exception: " << e.what() << std::endl;
-  }
-
-  return 0;
+    int sockfd;
+    char buffer[MAXLINE];
+    const char *hello = "Hello from server";
+    struct sockaddr_in servaddr, cliaddr;
+       
+    // Creating socket file descriptor
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+       
+    memset(&servaddr, 0, sizeof(servaddr));
+    memset(&cliaddr, 0, sizeof(cliaddr));
+       
+    // Filling server information
+    servaddr.sin_family    = AF_INET; // IPv4
+    servaddr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_port = htons(PORT);
+       
+    // Bind the socket with the server address
+    if ( bind(sockfd, (const struct sockaddr *)&servaddr, 
+            sizeof(servaddr)) < 0 )
+    {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+       
+    socklen_t len;
+    int n;
+   
+    len = sizeof(cliaddr);  //len is value/result
+   
+    while(true) {
+        n = recvfrom(sockfd, (char *)buffer, MAXLINE, 
+                    MSG_WAITALL, ( struct sockaddr *) &cliaddr,
+                    &len);
+        buffer[n] = '\0';
+        printf("Client : %s\n", buffer);
+        sendto(sockfd, (const char *)hello, strlen(hello), 
+            MSG_CONFIRM, (const struct sockaddr *) &cliaddr,
+                len);
+        std::cout<<"Hello message sent."<<std::endl; 
+    }
+    return 0;
 }
