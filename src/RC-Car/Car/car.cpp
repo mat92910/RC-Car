@@ -50,20 +50,23 @@
 
 // Define a struct to hold the sensor readings
 struct SensorData {
-    float angle;
-    float range;
-    long long timestamp;
     float accelX, accelY, accelZ;
     float gyroX, gyroY, gyroZ;
     float magX, magY, magZ;
+    long long timestamp;
+};
+
+// Define a struct to hold the lidar readings
+struct LIDARData {
+    float angle;
+    float range;
+    long long timestamp;
 };
 
 // Function to convert the sensor data to a string for sending over the socket
 std::string sensorDataToString(const SensorData& data) {
     std::stringstream ss;
-    ss << data.angle << ","
-       << data.range << ","
-       << data.timestamp << ","
+    ss << "SENSOR" << ","
        << data.accelX << ","
        << data.accelY << ","
        << data.accelZ << ","
@@ -72,7 +75,18 @@ std::string sensorDataToString(const SensorData& data) {
        << data.gyroZ << ","
        << data.magX << ","
        << data.magY << ","
-       << data.magZ;
+       << data.magZ << ","
+       << data.timestamp;
+    return ss.str();
+}
+
+// Function to convert the sensor data to a string for sending over the socket
+std::string LIDARDataToString(const LIDARData& data) {
+    std::stringstream ss;
+    ss << "LIDAR" << ","
+       << data.angle << ","
+       << data.range << ","
+       << data.timestamp;
     return ss.str();
 }
 
@@ -234,6 +248,7 @@ int main() {
     servaddr.sin_port = htons(PORT); // Port number, converted to network byte order
     servaddr.sin_addr.s_addr = inet_addr("10.10.1.22"); // IP address, converted to network byte order
 
+    int16_t accelX, accelY, accelZ, gyroX, gyroY, gyroZ;
         
     while (ret && ydlidar::os_isOk())
     {
@@ -248,97 +263,66 @@ int main() {
 
                 // Prepare the data to be sent
                 //std::string data = "Angle: " + std::to_string(scan.points[i].angle) + " Range: " + std::to_string(scan.points[i].range) + " Timestamp: " + std::to_string(milliseconds) + "\n";
-                // Read accelerometer data for X, Y and Z axes
-                int16_t accelX = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_XOUT_H);
-                accelX = ((accelX >> 8) & 0xFF) | ((accelX << 8) & 0xFF00);
-
-                int16_t accelY = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_YOUT_H);
-                accelY = ((accelY >> 8) & 0xFF) | ((accelY << 8) & 0xFF00);
-
-                int16_t accelZ = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_ZOUT_H);
-                accelZ = ((accelZ >> 8) & 0xFF) | ((accelZ << 8) & 0xFF00);
-
-                // Read gyroscope data for X, Y and Z axes
-                int16_t gyroX = wiringPiI2CReadReg16(fd_mpu9250, GYRO_XOUT_H);
-                gyroX = ((gyroX >> 8) & 0xFF) | ((gyroX << 8) & 0xFF00);
-
-                int16_t gyroY = wiringPiI2CReadReg16(fd_mpu9250, GYRO_YOUT_H);
-                gyroY = ((gyroY >> 8) & 0xFF) | ((gyroY << 8) & 0xFF00);
-
-                int16_t gyroZ = wiringPiI2CReadReg16(fd_mpu9250, GYRO_ZOUT_H);
-                gyroZ = ((gyroZ >> 8) & 0xFF) | ((gyroZ << 8) & 0xFF00);
-
-                // Read the magnetometer data
-                int16_t magX = wiringPiI2CReadReg16(fd_mpu9250, 0x49);
-                int16_t magY = wiringPiI2CReadReg16(fd_mpu9250, 0x4B);
-                int16_t magZ = wiringPiI2CReadReg16(fd_mpu9250, 0x4D);
 
                 // Create a SensorData object and fill it with data
-                SensorData data;
-                data.angle = scan.points[i].angle; // get angle from lidar
-                data.range = scan.points[i].range; // get range from lidar
-                data.timestamp = milliseconds; // get timestamp
-                data.accelX = accelX; // get accelerometer X axis
-                data.accelY = accelY; // get accelerometer Y axis
-                data.accelZ = accelZ; // get accelerometer Z axis
-                data.gyroX = gyroX; // get gyroscope X axis
-                data.gyroY = gyroY; // get gyroscope Y axis
-                data.gyroZ = gyroZ; // get gyroscope Z axis
-                data.magX = magX; // get magnetometer X axis
-                data.magY = magY; // get magnetometer Y axis
-                data.magZ = magZ; // get magnetometer Z axis
+                LIDARData LIDARData;
+                LIDARData.angle = scan.points[i].angle; // get angle from lidar
+                LIDARData.range = scan.points[i].range; // get range from lidar
+                LIDARData.timestamp = milliseconds; // get timestamp
 
-                std::string dataStr = sensorDataToString(data);
+                std::string LIDARDataStr = LIDARDataToString(LIDARData);
                 // Send the data over the socket to the specified address and port
-                sendto(sockfd, dataStr.c_str(), dataStr.size(), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
+                sendto(sockfd, LIDARDataStr.c_str(), LIDARDataStr.size(), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
             }
+
+            // Read accelerometer data for X, Y and Z axes
+            accelX = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_XOUT_H);
+            accelX = ((accelX >> 8) & 0xFF) | ((accelX << 8) & 0xFF00);
+
+            accelY = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_YOUT_H);
+            accelY = ((accelY >> 8) & 0xFF) | ((accelY << 8) & 0xFF00);
+
+            accelZ = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_ZOUT_H);
+            accelZ = ((accelZ >> 8) & 0xFF) | ((accelZ << 8) & 0xFF00);
+
+            // Read gyroscope data for X, Y and Z axes
+            gyroX = wiringPiI2CReadReg16(fd_mpu9250, GYRO_XOUT_H);
+            gyroX = ((gyroX >> 8) & 0xFF) | ((gyroX << 8) & 0xFF00);
+
+            gyroY = wiringPiI2CReadReg16(fd_mpu9250, GYRO_YOUT_H);
+            gyroY = ((gyroY >> 8) & 0xFF) | ((gyroY << 8) & 0xFF00);
+
+            gyroZ = wiringPiI2CReadReg16(fd_mpu9250, GYRO_ZOUT_H);
+            gyroZ = ((gyroZ >> 8) & 0xFF) | ((gyroZ << 8) & 0xFF00);
+
+            // Read the magnetometer data
+            int16_t magX = wiringPiI2CReadReg16(fd_mpu9250, 0x49);
+            int16_t magY = wiringPiI2CReadReg16(fd_mpu9250, 0x4B);
+            int16_t magZ = wiringPiI2CReadReg16(fd_mpu9250, 0x4D);
 
             // Get the current time
             auto now = std::chrono::system_clock::now();
             auto duration = now.time_since_epoch();
             auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
+            // Create a SensorData object and fill it with data
+            SensorData sensorData;
+            sensorData.timestamp = milliseconds; // get timestamp
+            sensorData.accelX = accelX; // get accelerometer X axis
+            sensorData.accelY = accelY; // get accelerometer Y axis
+            sensorData.accelZ = accelZ; // get accelerometer Z axis
+            sensorData.gyroX = gyroX; // get gyroscope X axis
+            sensorData.gyroY = gyroY; // get gyroscope Y axis
+            sensorData.gyroZ = gyroZ; // get gyroscope Z axis
+            sensorData.magX = magX; // get magnetometer X axis
+            sensorData.magY = magY; // get magnetometer Y axis
+            sensorData.magZ = magZ; // get magnetometer Z axis
+
+            std::string sensorDataStr = sensorDataToString(sensorData);
+            // Send the data over the socket to the specified address and port
+            sendto(sockfd, sensorDataStr.c_str(), sensorDataStr.size(), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
+
             std::cout << "Points Sent: " + std::to_string(scan.points.size()) + " Timestamp: " + std::to_string(milliseconds) + "\n";
-
-            // Read accelerometer data for X, Y and Z axes
-            int16_t accelX = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_XOUT_H);
-            accelX = ((accelX >> 8) & 0xFF) | ((accelX << 8) & 0xFF00);
-
-            int16_t accelY = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_YOUT_H);
-            accelY = ((accelY >> 8) & 0xFF) | ((accelY << 8) & 0xFF00);
-
-            int16_t accelZ = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_ZOUT_H);
-            accelZ = ((accelZ >> 8) & 0xFF) | ((accelZ << 8) & 0xFF00);
-
-            // Print the accelerometer data
-            std::cout << "Accelerometer X: " << accelX;
-            std::cout << " Y: " << accelY;
-            std::cout << " Z: " << accelZ << "\n";
-
-            // Read gyroscope data for X, Y and Z axes
-            int16_t gyroX = wiringPiI2CReadReg16(fd_mpu9250, GYRO_XOUT_H);
-            gyroX = ((gyroX >> 8) & 0xFF) | ((gyroX << 8) & 0xFF00);
-
-            int16_t gyroY = wiringPiI2CReadReg16(fd_mpu9250, GYRO_YOUT_H);
-            gyroY = ((gyroY >> 8) & 0xFF) | ((gyroY << 8) & 0xFF00);
-
-            int16_t gyroZ = wiringPiI2CReadReg16(fd_mpu9250, GYRO_ZOUT_H);
-            gyroZ = ((gyroZ >> 8) & 0xFF) | ((gyroZ << 8) & 0xFF00);
-
-            // Print the gyroscope data
-            std::cout << "Gyroscope X: " << gyroX;
-            std::cout << " Y: " << gyroY;
-            std::cout << " Z: " << gyroZ << "\n";
-
-            // Read the magnetometer data
-            int16_t mx = wiringPiI2CReadReg16(fd_mpu9250, 0x49);
-            int16_t my = wiringPiI2CReadReg16(fd_mpu9250, 0x4B);
-            int16_t mz = wiringPiI2CReadReg16(fd_mpu9250, 0x4D);
-
-            // Print the magnetometer data
-            std::cout << "Magnetometer X: " << mx;
-            std::cout << " Y: " << my;
-            std::cout << " Z: " << mz << "\n";
         }
         else
         {
