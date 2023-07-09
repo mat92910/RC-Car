@@ -4,6 +4,8 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <cstring>
+#include <string>
+#include <sstream>
 
 #if defined(_MSC_VER)
 #pragma comment(lib, "ydlidar_sdk.lib")
@@ -14,6 +16,38 @@
 #define PORT     8080
 #define MAXLINE 1024
    
+// Define the SensorData struct (same as before)
+struct SensorData {
+    float angle;
+    float range;
+    long long timestamp;
+    float accelX, accelY, accelZ;
+    float gyroX, gyroY, gyroZ;
+    float magX, magY, magZ;
+};
+
+// Function to convert a string back into a SensorData object
+SensorData stringToSensorData(const std::string& dataStr) {
+    std::stringstream ss(dataStr);
+    SensorData data;
+    char comma; // for reading the commas in the string
+
+    ss >> data.angle >> comma
+       >> data.range >> comma
+       >> data.timestamp >> comma
+       >> data.accelX >> comma
+       >> data.accelY >> comma
+       >> data.accelZ >> comma
+       >> data.gyroX >> comma
+       >> data.gyroY >> comma
+       >> data.gyroZ >> comma
+       >> data.magX >> comma
+       >> data.magY >> comma
+       >> data.magZ;
+
+    return data;
+}
+
 // Driver code
 int main() {
     std::cout <<  "\033[1;35m"
@@ -60,8 +94,11 @@ int main() {
             break;
         }
 
+        std::string dataStr = buffer;
+        SensorData data = stringToSensorData(dataStr);
+
         // Print received data
-        std::cout << buffer;
+        std::cout << "Angle: " << data.angle << std::endl;
     }
 
     // Close the socket
