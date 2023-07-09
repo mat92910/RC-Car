@@ -1,4 +1,4 @@
-if( ${ARCHITECTURE} STREQUAL "64Bit" )
+if(NOT ${ARCHITECTURE} STREQUAL "64Bit" )
     add_executable(Car car.cpp)
 
     #Link your project to the libraries.
