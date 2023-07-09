@@ -2,6 +2,7 @@
 #include <thread>
 #include <mutex>
 #include <string>
+#include <sstream>
 #include <iostream>
 #include <sys/socket.h> // Required for socket programming
 #include <netinet/in.h> // Required for internet domain addresses
@@ -46,6 +47,34 @@
 #define I2C_SLV0_REG 0x26
 #define I2C_SLV0_CTRL 0x27
 #define I2C_SLV0_DO 0x63
+
+// Define a struct to hold the sensor readings
+struct SensorData {
+    float angle;
+    float range;
+    long long timestamp;
+    float accelX, accelY, accelZ;
+    float gyroX, gyroY, gyroZ;
+    float magX, magY, magZ;
+};
+
+// Function to convert the sensor data to a string for sending over the socket
+std::string sensorDataToString(const SensorData& data) {
+    std::stringstream ss;
+    ss << data.angle << ","
+       << data.range << ","
+       << data.timestamp << ","
+       << data.accelX << ","
+       << data.accelY << ","
+       << data.accelZ << ","
+       << data.gyroX << ","
+       << data.gyroY << ","
+       << data.gyroZ << ","
+       << data.magX << ","
+       << data.magY << ","
+       << data.magZ;
+    return ss.str();
+}
 
 // Function to initialize the lidar with the setting for the x4
 void InitializeLidar(CYdLidar &PtrLaser)
@@ -218,9 +247,50 @@ int main() {
                 auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
 
                 // Prepare the data to be sent
-                std::string data = "Angle: " + std::to_string(scan.points[i].angle) + " Range: " + std::to_string(scan.points[i].range) + " Timestamp: " + std::to_string(milliseconds) + "\n";
+                //std::string data = "Angle: " + std::to_string(scan.points[i].angle) + " Range: " + std::to_string(scan.points[i].range) + " Timestamp: " + std::to_string(milliseconds) + "\n";
+                // Read accelerometer data for X, Y and Z axes
+                int16_t accelX = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_XOUT_H);
+                accelX = ((accelX >> 8) & 0xFF) | ((accelX << 8) & 0xFF00);
+
+                int16_t accelY = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_YOUT_H);
+                accelY = ((accelY >> 8) & 0xFF) | ((accelY << 8) & 0xFF00);
+
+                int16_t accelZ = wiringPiI2CReadReg16(fd_mpu9250, ACCEL_ZOUT_H);
+                accelZ = ((accelZ >> 8) & 0xFF) | ((accelZ << 8) & 0xFF00);
+
+                // Read gyroscope data for X, Y and Z axes
+                int16_t gyroX = wiringPiI2CReadReg16(fd_mpu9250, GYRO_XOUT_H);
+                gyroX = ((gyroX >> 8) & 0xFF) | ((gyroX << 8) & 0xFF00);
+
+                int16_t gyroY = wiringPiI2CReadReg16(fd_mpu9250, GYRO_YOUT_H);
+                gyroY = ((gyroY >> 8) & 0xFF) | ((gyroY << 8) & 0xFF00);
+
+                int16_t gyroZ = wiringPiI2CReadReg16(fd_mpu9250, GYRO_ZOUT_H);
+                gyroZ = ((gyroZ >> 8) & 0xFF) | ((gyroZ << 8) & 0xFF00);
+
+                // Read the magnetometer data
+                int16_t magX = wiringPiI2CReadReg16(fd_mpu9250, 0x49);
+                int16_t magY = wiringPiI2CReadReg16(fd_mpu9250, 0x4B);
+                int16_t magZ = wiringPiI2CReadReg16(fd_mpu9250, 0x4D);
+
+                // Create a SensorData object and fill it with data
+                SensorData data;
+                data.angle = scan.points[i].angle; // get angle from lidar
+                data.range = scan.points[i].range; // get range from lidar
+                data.timestamp = milliseconds; // get timestamp
+                data.accelX = accelX; // get accelerometer X axis
+                data.accelY = accelY; // get accelerometer Y axis
+                data.accelZ = accelZ; // get accelerometer Z axis
+                data.gyroX = gyroX; // get gyroscope X axis
+                data.gyroY = gyroY; // get gyroscope Y axis
+                data.gyroZ = gyroZ; // get gyroscope Z axis
+                data.magX = magX; // get magnetometer X axis
+                data.magY = magY; // get magnetometer Y axis
+                data.magZ = magZ; // get magnetometer Z axis
+
+                std::string dataStr = sensorDataToString(data);
                 // Send the data over the socket to the specified address and port
-                sendto(sockfd, data.c_str(), data.size(), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
+                sendto(sockfd, dataStr.c_str(), dataStr.size(), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
             }
 
             // Get the current time

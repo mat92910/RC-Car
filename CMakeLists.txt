@@ -13,7 +13,7 @@ include(CPack)
 find_package(ydlidar_sdk REQUIRED)
 #find OpenCV Package
 find_package(OpenCV REQUIRED)
-#find WiringPi package
+#find WiringPi library
 find_library(WIRINGPI_LIBRARIES NAMES wiringPi)
 
 #Include directories
