@@ -132,7 +132,7 @@ int main() {
     // Buffer to store incoming data
     char buffer[1024];
 
-    std::cout << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
+    std::cout << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl << std::endl;
 
     saveCursorPosition();
 
@@ -163,7 +163,7 @@ int main() {
             LIDARData data = stringToLIDARData(dataStr);
             restoreCursorPosition();
             lineUP(9);
-            std::cout << "LIDAR:";
+            std::cout << "  LIDAR:";
             restoreCursorPosition();
             lineUP(8);
             std::cout << "\tAngle: " << data.angle << std::endl; 
@@ -179,7 +179,7 @@ int main() {
             restoreCursorPosition();
             lineUP(5);
             clearLine();
-            std::cout << "Sensor:" << std::endl;
+            std::cout << "  Sensor:" << std::endl;
             restoreCursorPosition();
             lineUP(4);
             clearLine();
